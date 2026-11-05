@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { APP_NAME, APP_TAGLINE, APP_VERSION } from "@/lib/version";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -13,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Goose+ BILL SPLITTER v1.0.0",
+  title: `${APP_NAME} ${APP_TAGLINE} v${APP_VERSION}`,
   description: "Minimalist, fair bill splitting with tax, service charge, and real-time room sharing in THB.",
 };
 

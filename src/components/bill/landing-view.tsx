@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { User, ArrowRight, Sparkles, Clock, Receipt, Trash2 } from "lucide-react";
 import { Bill } from "@/lib/types";
+import { APP_NAME, APP_TAGLINE, APP_VERSION } from "@/lib/version";
 
 interface LandingViewProps {
   onStart: (ownerName: string, billTitle?: string) => void;
@@ -38,13 +39,13 @@ export function LandingView({
           <div>
             <div className="flex items-center justify-center gap-2">
               <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-neutral-900 dark:text-neutral-100">
-                Goose+
+                {APP_NAME}
               </h1>
               <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-neutral-200 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400">
-                BILL SPLITTER
+                {APP_TAGLINE}
               </span>
               <span className="text-[10px] font-mono font-medium text-neutral-400">
-                v1.0.0
+                v{APP_VERSION}
               </span>
             </div>
             <p className="text-xs sm:text-sm text-neutral-500 mt-1.5">

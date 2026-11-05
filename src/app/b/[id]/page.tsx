@@ -25,6 +25,7 @@ import {
   ArrowRight,
   QrCode,
 } from "lucide-react";
+import { APP_NAME, APP_TAGLINE, APP_VERSION } from "@/lib/version";
 
 const AVATAR_COLORS = [
   "#2563eb",
@@ -291,13 +292,13 @@ function GuestBillContent() {
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="text-lg">🪿</span>
             <span className="font-bold text-sm tracking-tight text-neutral-900 dark:text-neutral-100">
-              Goose+
+              {APP_NAME}
             </span>
             <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-500">
-              BILL SPLITTER
+              {APP_TAGLINE}
             </span>
             <span className="text-[10px] font-mono text-neutral-400">
-              v1.0.0
+              v{APP_VERSION}
             </span>
           </div>
 

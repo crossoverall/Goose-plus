@@ -288,9 +288,17 @@ function GuestBillContent() {
       {/* Top Navbar */}
       <header className="sticky top-0 z-30 bg-white/80 dark:bg-neutral-900/80 backdrop-blur-md border-b border-neutral-200 dark:border-neutral-800">
         <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 flex-wrap">
             <span className="text-lg">🪿</span>
-            <span className="font-bold text-sm tracking-tight">{bill.title}</span>
+            <span className="font-bold text-sm tracking-tight text-neutral-900 dark:text-neutral-100">
+              Goose+
+            </span>
+            <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-500">
+              BILL SPLITTER
+            </span>
+            <span className="text-[10px] font-mono text-neutral-400">
+              v1.0.0
+            </span>
           </div>
 
           <div className="flex items-center gap-2">

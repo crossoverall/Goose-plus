@@ -36,10 +36,18 @@ export function LandingView({
             🪿
           </div>
           <div>
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-neutral-900 dark:text-neutral-100">
-              Goose Plus
-            </h1>
-            <p className="text-xs sm:text-sm text-neutral-500 mt-1">
+            <div className="flex items-center justify-center gap-2">
+              <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-neutral-900 dark:text-neutral-100">
+                Goose+
+              </h1>
+              <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-neutral-200 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400">
+                BILL SPLITTER
+              </span>
+              <span className="text-[10px] font-mono font-medium text-neutral-400">
+                v1.0.0
+              </span>
+            </div>
+            <p className="text-xs sm:text-sm text-neutral-500 mt-1.5">
               Split restaurant bills fairly with friends in real-time
             </p>
           </div>
@@ -149,7 +157,7 @@ export function LandingView({
       </div>
 
       <footer className="text-center text-xs text-neutral-400 py-2">
-        Goose Plus — Minimalist, Fair Restaurant Bill Splitting (THB)
+        Goose+ — Minimalist, Fair Restaurant Bill Splitting (THB)
       </footer>
     </div>
   );

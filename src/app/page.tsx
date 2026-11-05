@@ -127,9 +127,15 @@ export default function Home() {
             <div className="w-7 h-7 rounded-lg bg-neutral-900 dark:bg-white flex items-center justify-center text-white dark:text-neutral-900 font-bold text-xs shadow-xs">
               🪿
             </div>
-            <div>
+            <div className="flex items-center gap-1.5 flex-wrap">
               <span className="font-bold text-sm tracking-tight text-neutral-900 dark:text-neutral-100">
-                Goose Plus
+                Goose+
+              </span>
+              <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-500">
+                BILL SPLITTER
+              </span>
+              <span className="text-[10px] font-mono text-neutral-400">
+                v1.0.0
               </span>
             </div>
           </div>
@@ -340,7 +346,7 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="mt-auto py-6 border-t border-neutral-200 dark:border-neutral-800 text-center text-xs text-neutral-400">
-        <p>Goose Plus — Minimalist, Fair Restaurant Bill Splitting (THB)</p>
+        <p>Goose+ v1.0.0 — Minimalist, Fair Restaurant Bill Splitting (THB)</p>
       </footer>
     </div>
   );

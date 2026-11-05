@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Goose Plus — Restaurant Bill Splitter",
-  description: "Minimalist, fair bill splitting with tax, service charge, and item sharing in THB.",
+  title: "Goose+ BILL SPLITTER v1.0.0",
+  description: "Minimalist, fair bill splitting with tax, service charge, and real-time room sharing in THB.",
 };
 
 export default function RootLayout({

@@ -28,6 +28,8 @@ export function SummaryView({ onBackToEdit }: { onBackToEdit: () => void }) {
     amount: number;
   } | null>(null);
 
+  if (!currentBill) return null;
+
   const summary = calculateBill(currentBill);
 
   const triggerCelebration = () => {

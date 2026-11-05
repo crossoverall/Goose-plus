@@ -19,6 +19,8 @@ export function ItemsSection() {
   const [newItemName, setNewItemName] = useState("");
   const [newItemPrice, setNewItemPrice] = useState("");
 
+  if (!currentBill) return null;
+
   const handleQuickAdd = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newItemName.trim()) return;

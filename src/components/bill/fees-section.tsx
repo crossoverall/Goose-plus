@@ -7,6 +7,8 @@ import { Percent, DollarSign, Tag, HeartHandshake, QrCode } from "lucide-react";
 export function FeesSection() {
   const { currentBill, updateBillMeta } = useBillStore();
 
+  if (!currentBill) return null;
+
   return (
     <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-5 shadow-xs space-y-4">
       <div>

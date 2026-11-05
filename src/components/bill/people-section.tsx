@@ -9,6 +9,8 @@ export function PeopleSection() {
   const [nameInput, setNameInput] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
 
+  if (!currentBill) return null;
+
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
     if (!nameInput.trim()) return;

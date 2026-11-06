@@ -164,13 +164,12 @@ export const useBillStore = create<BillStoreState>()(
       addItem: (partial) =>
         set((state) => {
           if (!state.currentBill) return state;
-          const allPersonIds = state.currentBill.people.map((p) => p.id);
           const newItem: BillItem = {
             id: generateId(),
             name: partial?.name || "",
             price: partial?.price ?? 0,
             quantity: partial?.quantity ?? 1,
-            assignedPersonIds: partial?.assignedPersonIds ?? allPersonIds,
+            assignedPersonIds: partial?.assignedPersonIds ?? [], // Start unchecked for everyone
           };
 
           const updated: Bill = {

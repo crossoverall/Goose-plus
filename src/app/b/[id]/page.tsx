@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, Suspense } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { Bill, Person, BillItem } from "@/lib/types";
 import { calculateBill } from "@/lib/calculator";
 import { formatCurrency } from "@/lib/utils";
@@ -24,6 +24,7 @@ import {
   Sparkles,
   ArrowRight,
   QrCode,
+  Link as LinkIcon,
 } from "lucide-react";
 import { APP_NAME, APP_TAGLINE, APP_VERSION } from "@/lib/version";
 
@@ -40,6 +41,7 @@ const AVATAR_COLORS = [
 
 function GuestBillContent() {
   const routeParams = useParams();
+  const searchParams = useSearchParams();
   const billId = routeParams?.id as string;
 
   const [bill, setBill] = useState<Bill | null>(null);
@@ -49,8 +51,21 @@ function GuestBillContent() {
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [showPromptPayModal, setShowPromptPayModal] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const [copiedPersonalLink, setCopiedPersonalLink] = useState(false);
 
-  // Load bill and check existing session
+  // Helper to persist user state in URL (?u=ID) so in-app browsers (LINE/Messenger) never lose identity
+  const syncPersonToUrl = (personId: string) => {
+    if (typeof window === "undefined") return;
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set("u", personId);
+      window.history.replaceState(null, "", url.toString());
+    } catch (e) {
+      // Ignore if URL update fails
+    }
+  };
+
+  // Load bill and resolve identity with 3-tier fallback (URL param > localStorage > prompt modal)
   useEffect(() => {
     if (!billId) return;
     let channel: any = null;
@@ -60,12 +75,28 @@ function GuestBillContent() {
       const data = await fetchBillFromSupabase(billId);
       if (data) {
         setBill(data);
-        const storedPersonId = localStorage.getItem(`goose_person_${billId}`);
-        if (storedPersonId && data.people.some((p) => p.id === storedPersonId)) {
-          setActivePersonId(storedPersonId);
+
+        // Tier 1: Check URL searchParam ?u=... (survives all in-app browser reloads & app switching)
+        const urlUserParam = searchParams.get("u");
+        const personFromUrl = urlUserParam
+          ? data.people.find((p) => p.id === urlUserParam)
+          : null;
+
+        if (personFromUrl) {
+          setActivePersonId(personFromUrl.id);
+          localStorage.setItem(`goose_person_${billId}`, personFromUrl.id);
           setShowWelcomeModal(false);
         } else {
-          setShowWelcomeModal(true);
+          // Tier 2: Check localStorage fallback
+          const storedPersonId = localStorage.getItem(`goose_person_${billId}`);
+          if (storedPersonId && data.people.some((p) => p.id === storedPersonId)) {
+            setActivePersonId(storedPersonId);
+            syncPersonToUrl(storedPersonId);
+            setShowWelcomeModal(false);
+          } else {
+            // Tier 3: First time visitor, show name modal
+            setShowWelcomeModal(true);
+          }
         }
       }
       setLoading(false);
@@ -99,7 +130,7 @@ function GuestBillContent() {
         supabase.removeChannel(channel);
       }
     };
-  }, [billId]);
+  }, [billId, searchParams]);
 
   // Persist updates to cloud
   const handleUpdateBill = async (updated: Bill) => {
@@ -123,6 +154,7 @@ function GuestBillContent() {
     if (existing) {
       setActivePersonId(existing.id);
       localStorage.setItem(`goose_person_${billId}`, existing.id);
+      syncPersonToUrl(existing.id);
       setShowWelcomeModal(false);
       return;
     }
@@ -141,6 +173,7 @@ function GuestBillContent() {
 
     setActivePersonId(newPerson.id);
     localStorage.setItem(`goose_person_${billId}`, newPerson.id);
+    syncPersonToUrl(newPerson.id);
     setShowWelcomeModal(false);
     handleUpdateBill(updated);
   };
@@ -148,6 +181,7 @@ function GuestBillContent() {
   const handleSelectExistingPerson = (person: Person) => {
     setActivePersonId(person.id);
     localStorage.setItem(`goose_person_${billId}`, person.id);
+    syncPersonToUrl(person.id);
     setShowWelcomeModal(false);
   };
 
@@ -174,6 +208,15 @@ function GuestBillContent() {
     };
 
     handleUpdateBill(updated);
+  };
+
+  const copyPersonalBookmarkLink = () => {
+    if (!activePersonId) return;
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const personalUrl = `${origin}/b/${billId}?u=${activePersonId}`;
+    navigator.clipboard.writeText(personalUrl);
+    setCopiedPersonalLink(true);
+    setTimeout(() => setCopiedPersonalLink(false), 2000);
   };
 
   if (loading) {
@@ -251,7 +294,7 @@ function GuestBillContent() {
               <button
                 type="submit"
                 disabled={!nameModalInput.trim()}
-                className="w-full py-2.5 text-sm font-semibold rounded-xl bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 disabled:opacity-40 transition-all flex items-center justify-center gap-1.5 shadow-xs"
+                className="w-full py-2.5 text-sm font-semibold rounded-xl bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 disabled:opacity-40 transition-all flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
               >
                 <span>Continue</span>
                 <ArrowRight className="w-4 h-4" />
@@ -270,7 +313,7 @@ function GuestBillContent() {
                       key={p.id}
                       type="button"
                       onClick={() => handleSelectExistingPerson(p)}
-                      className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-full border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:border-neutral-400 dark:hover:border-neutral-600 transition-colors"
+                      className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-full border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:border-neutral-400 dark:hover:border-neutral-600 transition-colors cursor-pointer"
                     >
                       <span
                         className="w-2 h-2 rounded-full"
@@ -323,31 +366,48 @@ function GuestBillContent() {
 
       <main className="max-w-2xl w-full mx-auto p-4 space-y-4">
         {/* Active Identity Bar */}
-        <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-4 shadow-xs flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
+        <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-4 shadow-xs flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5 truncate">
             <div
-              className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-xs shadow-xs"
+              className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-xs shadow-xs shrink-0"
               style={{ backgroundColor: activePerson?.color || "#3b82f6" }}
             >
               {activePerson ? activePerson.name.slice(0, 2).toUpperCase() : "?"}
             </div>
-            <div>
-              <span className="text-[10px] uppercase font-semibold text-neutral-400 block">
-                You are participating as
+            <div className="truncate">
+              <span className="text-[10px] uppercase font-semibold text-neutral-400 block truncate">
+                {bill.title} · Participating as
               </span>
-              <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
+              <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100 truncate">
                 {activePerson ? activePerson.name : "Guest (Not selected)"}
               </p>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setShowWelcomeModal(true)}
-            className="px-3 py-1 text-xs font-medium rounded-xl border border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
-          >
-            Switch Name
-          </button>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {activePerson && (
+              <button
+                type="button"
+                onClick={copyPersonalBookmarkLink}
+                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-xl border border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+                title="Copy your personal link to keep your items saved"
+              >
+                {copiedPersonalLink ? (
+                  <Check className="w-3.5 h-3.5 text-green-500" />
+                ) : (
+                  <LinkIcon className="w-3.5 h-3.5" />
+                )}
+                <span>{copiedPersonalLink ? "Link Copied" : "Personal Link"}</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowWelcomeModal(true)}
+              className="px-2.5 py-1 text-xs font-medium rounded-xl border border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+            >
+              Switch
+            </button>
+          </div>
         </div>
 
         {/* Menu Items Checkbox Section */}
@@ -523,7 +583,7 @@ function GuestBillContent() {
               <button
                 type="button"
                 onClick={() => setShowPromptPayModal(true)}
-                className="inline-flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-colors shadow-sm"
+                className="inline-flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-colors shadow-sm cursor-pointer"
               >
                 <QrCode className="w-4 h-4" />
                 <span>Pay via PromptPay</span>

@@ -7,7 +7,7 @@ import {
   syncBillToSupabase,
   isSupabaseConfigured,
 } from "@/lib/supabase";
-import { Share2, Copy, Check, QrCode, X, ExternalLink } from "lucide-react";
+import { Share2, Copy, Check, X, ExternalLink, MessageCircle } from "lucide-react";
 
 interface ShareBillModalProps {
   bill: Bill;
@@ -16,30 +16,38 @@ interface ShareBillModalProps {
 }
 
 export function ShareBillModal({ bill, isOpen, onClose }: ShareBillModalProps) {
-  const [copied, setCopied] = useState(false);
+  const [copiedGeneral, setCopiedGeneral] = useState(false);
+  const [copiedLine, setCopiedLine] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
 
   if (!isOpen) return null;
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
-  const shareUrl = `${origin}/b/${bill.id}`;
+  const generalShareUrl = `${origin}/b/${bill.id}`;
+  // Append openExternalBrowser=1 so LINE opens directly in Safari/Chrome instead of transient in-app WebView
+  const lineShareUrl = `${origin}/b/${bill.id}?openExternalBrowser=1`;
 
-  const handleShare = async () => {
+  const handleShare = async (url: string, type: "general" | "line") => {
     setIsSyncing(true);
     await syncBillToSupabase(bill);
     setIsSyncing(false);
 
-    navigator.clipboard.writeText(shareUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2500);
+    navigator.clipboard.writeText(url);
+    if (type === "general") {
+      setCopiedGeneral(true);
+      setTimeout(() => setCopiedGeneral(false), 2500);
+    } else {
+      setCopiedLine(true);
+      setTimeout(() => setCopiedLine(false), 2500);
+    }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-      <div className="relative w-full max-w-md bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 shadow-xl space-y-5 animate-in fade-in zoom-in-95 duration-150">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+      <div className="relative w-full max-w-md bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="p-2 bg-blue-50 dark:bg-blue-950/50 rounded-xl text-blue-600 dark:text-blue-400">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2.5 bg-blue-50 dark:bg-blue-950/50 rounded-2xl text-blue-600 dark:text-blue-400">
               <Share2 className="w-5 h-5" />
             </div>
             <div>
@@ -47,7 +55,7 @@ export function ShareBillModal({ bill, isOpen, onClose }: ShareBillModalProps) {
                 Share Bill with Friends
               </h3>
               <p className="text-xs text-neutral-500">
-                Friends can open this link, enter their name, and pick their items
+                Friends enter their name and claim what they ate or drank
               </p>
             </div>
           </div>
@@ -59,25 +67,25 @@ export function ShareBillModal({ bill, isOpen, onClose }: ShareBillModalProps) {
           </button>
         </div>
 
-        {/* Link Box */}
-        <div className="space-y-2">
-          <label className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
-            Collaborative Room Link
+        {/* Standard Link */}
+        <div className="space-y-1.5">
+          <label className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400 block">
+            Standard Share Link (Messenger, WhatsApp, Web)
           </label>
           <div className="flex items-center gap-2">
             <input
               type="text"
               readOnly
-              value={shareUrl}
+              value={generalShareUrl}
               className="flex-1 px-3 py-2 text-xs font-mono bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl text-neutral-600 dark:text-neutral-400 select-all outline-hidden"
             />
             <button
               type="button"
-              onClick={handleShare}
+              onClick={() => handleShare(generalShareUrl, "general")}
               disabled={isSyncing}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium rounded-xl bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors shrink-0 shadow-xs"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-xl bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors shrink-0 shadow-xs cursor-pointer"
             >
-              {copied ? (
+              {copiedGeneral ? (
                 <>
                   <Check className="w-3.5 h-3.5 text-green-400" />
                   <span>Copied!</span>
@@ -85,24 +93,45 @@ export function ShareBillModal({ bill, isOpen, onClose }: ShareBillModalProps) {
               ) : (
                 <>
                   <Copy className="w-3.5 h-3.5" />
-                  <span>{isSyncing ? "Syncing..." : "Copy Link"}</span>
+                  <span>{isSyncing ? "Syncing..." : "Copy"}</span>
                 </>
               )}
             </button>
           </div>
         </div>
 
-        {/* How it works info */}
-        <div className="p-3.5 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200/80 dark:border-neutral-800 space-y-2 text-xs text-neutral-600 dark:text-neutral-400">
-          <p className="font-semibold text-neutral-900 dark:text-neutral-200 flex items-center gap-1.5">
-            <span>✨</span> How Realtime Bill Splitting Works:
+        {/* LINE Optimized Link */}
+        <div className="p-3.5 rounded-2xl bg-green-50/60 dark:bg-green-950/20 border border-green-200 dark:border-green-900/60 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-green-900 dark:text-green-300 flex items-center gap-1.5">
+              <MessageCircle className="w-4 h-4 text-green-600" />
+              <span>Recommended for LINE Groups</span>
+            </span>
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300">
+              Auto-Safari/Chrome
+            </span>
+          </div>
+          <p className="text-[11px] text-green-800/80 dark:text-green-400/80">
+            Forces LINE to open in the real phone browser so their name and claimed items are never forgotten.
           </p>
-          <ol className="list-decimal pl-4 space-y-1 text-[11px]">
-            <li>Send this link in your Line / WhatsApp / Messenger group.</li>
-            <li>Your friends open the link and pick their name (or type a new one).</li>
-            <li>They check off the items they ate or drank.</li>
-            <li>Everyone&apos;s totals update automatically on all screens!</li>
-          </ol>
+          <button
+            type="button"
+            onClick={() => handleShare(lineShareUrl, "line")}
+            disabled={isSyncing}
+            className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl bg-green-600 text-white hover:bg-green-700 transition-colors shadow-xs cursor-pointer"
+          >
+            {copiedLine ? (
+              <>
+                <Check className="w-3.5 h-3.5" />
+                <span>Copied LINE Link!</span>
+              </>
+            ) : (
+              <>
+                <Copy className="w-3.5 h-3.5" />
+                <span>Copy Link for LINE Chat</span>
+              </>
+            )}
+          </button>
         </div>
 
         {/* Supabase status warning if not set up */}
@@ -113,21 +142,21 @@ export function ShareBillModal({ bill, isOpen, onClose }: ShareBillModalProps) {
           </div>
         )}
 
-        <div className="flex justify-end gap-2 pt-2">
+        <div className="flex justify-end gap-2 pt-1">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-xs font-medium rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-300 transition-colors"
+            className="px-4 py-2 text-xs font-medium rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-300 transition-colors cursor-pointer"
           >
             Close
           </button>
           <a
-            href={shareUrl}
+            href={generalShareUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-colors shadow-xs"
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-xl bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors shadow-xs"
           >
-            <span>Open Room Preview</span>
+            <span>Preview Room</span>
             <ExternalLink className="w-3.5 h-3.5" />
           </a>
         </div>

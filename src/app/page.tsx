@@ -13,6 +13,7 @@ import { formatCurrency } from "@/lib/utils";
 import {
   supabase,
   syncBillToSupabase,
+  fetchBillFromSupabase,
   rowToBill,
   BillRow,
 } from "@/lib/supabase";
@@ -119,7 +120,31 @@ export default function Home() {
       )
       .subscribe();
 
+    // Revalidate when owner returns from background / unlocks phone
+    const handleOwnerForeground = async () => {
+      if (document.visibilityState === "visible" && currentBill?.id) {
+        setSyncStatus("saving");
+        const fresh = await fetchBillFromSupabase(currentBill.id);
+        if (fresh) {
+          isRemoteUpdateRef.current = true;
+          setCurrentBill(fresh);
+          setTimeout(() => {
+            isRemoteUpdateRef.current = false;
+          }, 300);
+        }
+        setSyncStatus("synced");
+        setTimeout(() => setSyncStatus("idle"), 1500);
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleOwnerForeground);
+    window.addEventListener("focus", handleOwnerForeground);
+    window.addEventListener("pageshow", handleOwnerForeground);
+
     return () => {
+      document.removeEventListener("visibilitychange", handleOwnerForeground);
+      window.removeEventListener("focus", handleOwnerForeground);
+      window.removeEventListener("pageshow", handleOwnerForeground);
       if (supabase) {
         supabase.removeChannel(channel);
       }

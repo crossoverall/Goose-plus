@@ -130,7 +130,27 @@ function GuestBillContent() {
 
     init();
 
+    // Lifecycle handlers: when user switches back from another app or unlocks their phone
+    const handleRevalidateOnForeground = async () => {
+      if (document.visibilityState === "visible") {
+        setSaveStatus("saving");
+        const fresh = await fetchBillFromSupabase(billId);
+        if (fresh) {
+          setBill(fresh);
+        }
+        setSaveStatus("saved");
+        setTimeout(() => setSaveStatus("idle"), 1500);
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleRevalidateOnForeground);
+    window.addEventListener("focus", handleRevalidateOnForeground);
+    window.addEventListener("pageshow", handleRevalidateOnForeground);
+
     return () => {
+      document.removeEventListener("visibilitychange", handleRevalidateOnForeground);
+      window.removeEventListener("focus", handleRevalidateOnForeground);
+      window.removeEventListener("pageshow", handleRevalidateOnForeground);
       if (channel && supabase) {
         supabase.removeChannel(channel);
       }

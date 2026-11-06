@@ -47,8 +47,10 @@ export default function Home() {
   const [syncStatus, setSyncStatus] = useState<"idle" | "saving" | "synced">("idle");
 
   const isRemoteUpdateRef = useRef(false);
+  const currentBillRef = useRef(currentBill);
+  currentBillRef.current = currentBill;
 
-  // 1. Two-way Realtime Subscription
+  // 1. Two-way Realtime Subscription with smart merging
   useEffect(() => {
     if (!supabase || !currentBill?.id) return;
 
@@ -57,16 +59,58 @@ export default function Home() {
       .on(
         "postgres_changes",
         {
-          event: "UPDATE",
+          event: "*",
           schema: "public",
           table: "bills",
           filter: `id=eq.${currentBill.id}`,
         },
         (payload) => {
           if (payload.new) {
-            const updated = rowToBill(payload.new as BillRow);
+            const incoming = rowToBill(payload.new as BillRow);
+            const local = currentBillRef.current;
+
+            if (!local) {
+              setCurrentBill(incoming);
+              return;
+            }
+
+            // Smart Merge:
+            // 1. Merge people (keep local + incoming new guests)
+            const peopleMap = new Map();
+            local.people.forEach((p) => peopleMap.set(p.id, p));
+            incoming.people.forEach((p) => peopleMap.set(p.id, p));
+            const mergedPeople = Array.from(peopleMap.values());
+
+            // 2. Merge items (retain all local items being edited, update checkmarks from incoming)
+            const incomingItemMap = new Map(incoming.items.map((it) => [it.id, it]));
+            const mergedItems = local.items.map((localItem) => {
+              const remote = incomingItemMap.get(localItem.id);
+              if (remote) {
+                return {
+                  ...localItem,
+                  // Keep newest claim assignments from remote friends
+                  assignedPersonIds: remote.assignedPersonIds,
+                };
+              }
+              return localItem;
+            });
+
+            // If remote added items that aren't in local, append them
+            incoming.items.forEach((remoteItem) => {
+              if (!mergedItems.some((it) => it.id === remoteItem.id)) {
+                mergedItems.push(remoteItem);
+              }
+            });
+
+            const mergedBill = {
+              ...local,
+              people: mergedPeople,
+              items: mergedItems,
+              updatedAt: incoming.updatedAt,
+            };
+
             isRemoteUpdateRef.current = true;
-            setCurrentBill(updated);
+            setCurrentBill(mergedBill);
             setTimeout(() => {
               isRemoteUpdateRef.current = false;
             }, 300);
@@ -82,7 +126,7 @@ export default function Home() {
     };
   }, [currentBill?.id, setCurrentBill]);
 
-  // 2. Realtime Auto-Push
+  // 2. Realtime Auto-Push for owner modifications (adding items, changing prices, editing fees)
   useEffect(() => {
     if (!supabase || !currentBill?.id) return;
     if (isRemoteUpdateRef.current) return;
@@ -347,7 +391,7 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="mt-auto py-6 border-t border-neutral-200 dark:border-neutral-800 text-center text-xs text-neutral-400">
-        <p>Goose+ v1.0.0 — Minimalist, Fair Restaurant Bill Splitting (THB)</p>
+        <p>Goose+ v{APP_VERSION} — Minimalist, Fair Restaurant Bill Splitting (THB)</p>
       </footer>
     </div>
   );

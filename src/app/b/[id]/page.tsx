@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, Suspense } from "react";
+import React, { useEffect, useState, Suspense, useRef } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { Bill, Person, BillItem } from "@/lib/types";
 import { calculateBill } from "@/lib/calculator";
@@ -12,6 +12,8 @@ import {
   syncBillToSupabase,
   rowToBill,
   BillRow,
+  toggleGuestItemAtomic,
+  joinGuestAtomic,
 } from "@/lib/supabase";
 import {
   User,
@@ -53,7 +55,9 @@ function GuestBillContent() {
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
   const [copiedPersonalLink, setCopiedPersonalLink] = useState(false);
 
-  // Helper to persist user state in URL (?u=ID) so in-app browsers (LINE/Messenger) never lose identity
+  const billRef = useRef<Bill | null>(null);
+  billRef.current = bill;
+
   const syncPersonToUrl = (personId: string) => {
     if (typeof window === "undefined") return;
     try {
@@ -61,11 +65,11 @@ function GuestBillContent() {
       url.searchParams.set("u", personId);
       window.history.replaceState(null, "", url.toString());
     } catch (e) {
-      // Ignore if URL update fails
+      // Ignore URL errors
     }
   };
 
-  // Load bill and resolve identity with 3-tier fallback (URL param > localStorage > prompt modal)
+  // Load bill and setup Realtime subscription
   useEffect(() => {
     if (!billId) return;
     let channel: any = null;
@@ -76,7 +80,7 @@ function GuestBillContent() {
       if (data) {
         setBill(data);
 
-        // Tier 1: Check URL searchParam ?u=... (survives all in-app browser reloads & app switching)
+        // Tier 1: Check URL searchParam ?u=...
         const urlUserParam = searchParams.get("u");
         const personFromUrl = urlUserParam
           ? data.people.find((p) => p.id === urlUserParam)
@@ -101,13 +105,14 @@ function GuestBillContent() {
       }
       setLoading(false);
 
+      // Listen for Realtime updates from owner or other friends
       if (supabase) {
         channel = supabase
           .channel(`bill-room-${billId}`)
           .on(
             "postgres_changes",
             {
-              event: "UPDATE",
+              event: "*",
               schema: "public",
               table: "bills",
               filter: `id=eq.${billId}`,
@@ -132,17 +137,8 @@ function GuestBillContent() {
     };
   }, [billId, searchParams]);
 
-  // Persist updates to cloud
-  const handleUpdateBill = async (updated: Bill) => {
-    setBill(updated);
-    setSaveStatus("saving");
-    await syncBillToSupabase(updated);
-    setSaveStatus("saved");
-    setTimeout(() => setSaveStatus("idle"), 2000);
-  };
-
-  // Join via the Welcome Modal
-  const handleJoinFromNameModal = (e: React.FormEvent) => {
+  // Join via the Welcome Modal non-destructively
+  const handleJoinFromNameModal = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!bill || !nameModalInput.trim()) return;
 
@@ -165,17 +161,16 @@ function GuestBillContent() {
       color: AVATAR_COLORS[bill.people.length % AVATAR_COLORS.length],
     };
 
-    const updated: Bill = {
-      ...bill,
-      people: [...bill.people, newPerson],
-      updatedAt: new Date().toISOString(),
-    };
-
     setActivePersonId(newPerson.id);
     localStorage.setItem(`goose_person_${billId}`, newPerson.id);
     syncPersonToUrl(newPerson.id);
     setShowWelcomeModal(false);
-    handleUpdateBill(updated);
+
+    setSaveStatus("saving");
+    const updated = await joinGuestAtomic(billId, newPerson, bill);
+    if (updated) setBill(updated);
+    setSaveStatus("saved");
+    setTimeout(() => setSaveStatus("idle"), 2000);
   };
 
   const handleSelectExistingPerson = (person: Person) => {
@@ -185,29 +180,41 @@ function GuestBillContent() {
     setShowWelcomeModal(false);
   };
 
-  // Toggle item check for active person
-  const toggleItemForActivePerson = (itemId: string) => {
+  // Atomic item toggle: Never deletes items added by the owner
+  const toggleItemForActivePerson = async (itemId: string) => {
     if (!bill || !activePersonId) {
       setShowWelcomeModal(true);
       return;
     }
 
-    const updatedItems = bill.items.map((item) => {
-      if (item.id !== itemId) return item;
-      const isAssigned = item.assignedPersonIds.includes(activePersonId);
-      const assignedPersonIds = isAssigned
-        ? item.assignedPersonIds.filter((id) => id !== activePersonId)
-        : [...item.assignedPersonIds, activePersonId];
-      return { ...item, assignedPersonIds };
+    // Optimistic UI update
+    setBill((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        items: prev.items.map((item) => {
+          if (item.id !== itemId) return item;
+          const exists = item.assignedPersonIds.includes(activePersonId);
+          const assignedPersonIds = exists
+            ? item.assignedPersonIds.filter((id) => id !== activePersonId)
+            : [...item.assignedPersonIds, activePersonId];
+          return { ...item, assignedPersonIds };
+        }),
+      };
     });
 
-    const updated: Bill = {
-      ...bill,
-      items: updatedItems,
-      updatedAt: new Date().toISOString(),
-    };
-
-    handleUpdateBill(updated);
+    setSaveStatus("saving");
+    const freshBill = await toggleGuestItemAtomic(
+      billId,
+      itemId,
+      activePersonId,
+      billRef.current || bill
+    );
+    if (freshBill) {
+      setBill(freshBill);
+    }
+    setSaveStatus("saved");
+    setTimeout(() => setSaveStatus("idle"), 2000);
   };
 
   const copyPersonalBookmarkLink = () => {
@@ -428,7 +435,7 @@ function GuestBillContent() {
           <div className="space-y-2 pt-1">
             {bill.items.length === 0 ? (
               <div className="text-center py-6 text-xs text-neutral-400">
-                No items on this bill yet.
+                No items on this bill yet. As the owner adds dishes, they will appear here live!
               </div>
             ) : (
               bill.items.map((item) => {

@@ -17,7 +17,11 @@ create table if not exists bills (
 -- If table already exists, ensure promptpay_number column is present:
 alter table bills add column if not exists promptpay_number text default '';
 
--- 2. Enable Row Level Security (RLS) and allow public read/write for bill sharing
+-- 2. CRITICAL for Realtime: Set Replica Identity to FULL
+-- Without this, UPDATE events in Supabase Realtime do not broadcast full jsonb arrays to anon clients!
+alter table bills replica identity full;
+
+-- 3. Enable Row Level Security (RLS) and allow public read/write for bill sharing
 alter table bills enable row level security;
 
 create policy "Allow public read access" 
@@ -33,5 +37,5 @@ create policy "Allow public update access"
   using (true) 
   with check (true);
 
--- 3. Enable Realtime updates
+-- 4. Enable Realtime updates
 alter publication supabase_realtime add table bills;

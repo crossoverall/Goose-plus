@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { Bill, BillItem, Person } from "@/lib/types";
+import { Bill, BillItem, Person, BillStatus } from "@/lib/types";
 
 const AVATAR_COLORS = [
   "#2563eb", // blue
@@ -30,8 +30,9 @@ export function createEmptyBill(ownerName: string = "Me", title?: string): Bill 
     id: generateId(),
     title: title?.trim() || `${trimmedName}'s Bill`,
     currency: "฿",
+    status: "draft",
     promptPayNumber: "",
-    targetPeopleCount: 0, // 0 = not set yet
+    targetPeopleCount: 0,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     serviceChargePercent: 0,
@@ -47,12 +48,14 @@ interface BillStoreState {
   currentBill: Bill | null;
   bills: Bill[];
   setCurrentBill: (bill: Bill | null) => void;
+  setBillStatus: (status: BillStatus) => void;
   updateBillMeta: (
     updates: Partial<
       Pick<
         Bill,
         | "title"
         | "currency"
+        | "status"
         | "promptPayNumber"
         | "targetPeopleCount"
         | "serviceChargePercent"
@@ -90,6 +93,20 @@ export const useBillStore = create<BillStoreState>()(
       setCurrentBill: (bill) => set({ currentBill: bill }),
 
       closeCurrentBill: () => set({ currentBill: null }),
+
+      setBillStatus: (status) =>
+        set((state) => {
+          if (!state.currentBill) return state;
+          const updated: Bill = {
+            ...state.currentBill,
+            status,
+            updatedAt: new Date().toISOString(),
+          };
+          return {
+            currentBill: updated,
+            bills: state.bills.map((b) => (b.id === updated.id ? updated : b)),
+          };
+        }),
 
       updateBillMeta: (updates) =>
         set((state) => {
@@ -319,7 +336,7 @@ export const useBillStore = create<BillStoreState>()(
       },
     }),
     {
-      name: "goose_plus_bills_storage_v3",
+      name: "goose_plus_bills_storage_v4",
     }
   )
 );

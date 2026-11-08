@@ -3,6 +3,7 @@ create table if not exists bills (
   id text primary key,
   title text not null default 'Restaurant Bill',
   currency text not null default '฿',
+  status text not null default 'draft',
   promptpay_number text default '',
   target_people_count numeric default 0,
   service_charge_percent numeric not null default 0,
@@ -15,7 +16,8 @@ create table if not exists bills (
   updated_at timestamptz not null default now()
 );
 
--- If table already exists, ensure promptpay_number & target_people_count columns are present:
+-- If table already exists, ensure status, promptpay_number & target_people_count columns are present:
+alter table bills add column if not exists status text default 'draft';
 alter table bills add column if not exists promptpay_number text default '';
 alter table bills add column if not exists target_people_count numeric default 0;
 

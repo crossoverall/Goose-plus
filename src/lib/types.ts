@@ -13,10 +13,13 @@ export interface BillItem {
   assignedPersonIds: string[]; // IDs of people sharing this item
 }
 
+export type BillStatus = "draft" | "confirmed" | "completed";
+
 export interface Bill {
   id: string;
   title: string;
   currency: string;
+  status?: BillStatus; // "draft" (default) or "confirmed" (ready for payment)
   promptPayNumber?: string;
   targetPeopleCount?: number; // Expected total people (e.g. 5)
   createdAt: string;

@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { Bill, Person, BillItem } from "./types";
+import { Bill, Person, BillItem, BillStatus } from "./types";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
@@ -24,6 +24,7 @@ export interface BillRow {
   id: string;
   title: string;
   currency: string;
+  status?: string;
   promptpay_number?: string;
   target_people_count?: number;
   service_charge_percent: number;
@@ -41,6 +42,7 @@ export function billToRow(bill: Bill): BillRow {
     id: bill.id,
     title: bill.title,
     currency: bill.currency,
+    status: bill.status || "draft",
     promptpay_number: bill.promptPayNumber || "",
     target_people_count: bill.targetPeopleCount || 0,
     service_charge_percent: bill.serviceChargePercent,
@@ -59,6 +61,7 @@ export function rowToBill(row: BillRow): Bill {
     id: row.id,
     title: row.title,
     currency: row.currency || "฿",
+    status: (row.status as BillStatus) || "draft",
     promptPayNumber: row.promptpay_number || "",
     targetPeopleCount: Number(row.target_people_count) || 0,
     serviceChargePercent: Number(row.service_charge_percent) || 0,

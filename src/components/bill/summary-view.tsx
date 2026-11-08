@@ -14,11 +14,15 @@ import {
   ArrowRight,
   Sparkles,
   QrCode,
+  Lock,
+  Unlock,
+  CheckCircle2,
+  Clock,
 } from "lucide-react";
 import confetti from "canvas-confetti";
 
 export function SummaryView({ onBackToEdit }: { onBackToEdit: () => void }) {
-  const { currentBill } = useBillStore();
+  const { currentBill, setBillStatus } = useBillStore();
   const [copiedPersonId, setCopiedPersonId] = useState<string | null>(null);
   const [copiedAll, setCopiedAll] = useState(false);
 
@@ -31,6 +35,7 @@ export function SummaryView({ onBackToEdit }: { onBackToEdit: () => void }) {
   if (!currentBill) return null;
 
   const summary = calculateBill(currentBill);
+  const isConfirmed = currentBill.status === "confirmed";
 
   const triggerCelebration = () => {
     confetti({
@@ -38,6 +43,15 @@ export function SummaryView({ onBackToEdit }: { onBackToEdit: () => void }) {
       spread: 60,
       origin: { y: 0.6 },
     });
+  };
+
+  const handleToggleConfirm = () => {
+    if (!isConfirmed) {
+      triggerCelebration();
+      setBillStatus("confirmed");
+    } else {
+      setBillStatus("draft");
+    }
   };
 
   const copyPersonSummary = (personName: string, total: number, itemsText: string, personId: string) => {
@@ -50,7 +64,7 @@ export function SummaryView({ onBackToEdit }: { onBackToEdit: () => void }) {
       text += `\n\n💸 PromptPay: ${currentBill.promptPayNumber}`;
     }
 
-    text += `\n\nSplit fairly with Goose Plus`;
+    text += `\n\nSplit fairly with Goose+`;
 
     navigator.clipboard.writeText(text);
     setCopiedPersonId(personId);
@@ -70,7 +84,7 @@ export function SummaryView({ onBackToEdit }: { onBackToEdit: () => void }) {
       text += `------------------------------------\n💸 Transfer to PromptPay: ${currentBill.promptPayNumber}\n`;
     }
 
-    text += `------------------------------------\nSplit with Goose Plus`;
+    text += `------------------------------------\nSplit with Goose+`;
 
     navigator.clipboard.writeText(text);
     setCopiedAll(true);
@@ -80,6 +94,75 @@ export function SummaryView({ onBackToEdit }: { onBackToEdit: () => void }) {
 
   return (
     <div className="space-y-6">
+      {/* Bill Status & Final Confirmation Banner */}
+      <div
+        className={`p-5 rounded-3xl border transition-all shadow-sm flex flex-wrap items-center justify-between gap-4 ${
+          isConfirmed
+            ? "bg-green-500/10 border-green-500/30 text-green-950 dark:text-green-100"
+            : "bg-amber-500/10 border-amber-500/30 text-amber-950 dark:text-amber-100"
+        }`}
+      >
+        <div className="flex items-center gap-3">
+          <div
+            className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${
+              isConfirmed
+                ? "bg-green-600 text-white shadow-xs"
+                : "bg-amber-500 text-white shadow-xs"
+            }`}
+          >
+            {isConfirmed ? (
+              <CheckCircle2 className="w-5 h-5" />
+            ) : (
+              <Clock className="w-5 h-5" />
+            )}
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold uppercase tracking-wider">
+                Bill Status:
+              </span>
+              <span
+                className={`text-xs font-black uppercase px-2 py-0.5 rounded-full ${
+                  isConfirmed
+                    ? "bg-green-600 text-white"
+                    : "bg-amber-500 text-white"
+                }`}
+              >
+                {isConfirmed ? "Confirmed & Ready to Pay" : "Draft (Waiting confirmation)"}
+              </span>
+            </div>
+            <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-0.5">
+              {isConfirmed
+                ? "The bill is locked. Friends can now see their PromptPay QR code to pay!"
+                : "Confirm the bill when everyone finishes checking. QR code is hidden until confirmed."}
+            </p>
+          </div>
+        </div>
+
+        {/* Owner Confirm / Unlock Toggle Button */}
+        <button
+          type="button"
+          onClick={handleToggleConfirm}
+          className={`inline-flex items-center gap-2 px-5 py-3 text-xs font-bold rounded-2xl transition-all shadow-md cursor-pointer ${
+            isConfirmed
+              ? "bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 text-neutral-800 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+              : "bg-green-600 text-white hover:bg-green-700 ring-2 ring-green-400"
+          }`}
+        >
+          {isConfirmed ? (
+            <>
+              <Unlock className="w-4 h-4 text-neutral-500" />
+              <span>Unlock to Edit</span>
+            </>
+          ) : (
+            <>
+              <Lock className="w-4 h-4" />
+              <span>Confirm Bill & Open Payment</span>
+            </>
+          )}
+        </button>
+      </div>
+
       {/* Top action bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-4 shadow-xs">
         <div>
@@ -95,14 +178,14 @@ export function SummaryView({ onBackToEdit }: { onBackToEdit: () => void }) {
           <button
             type="button"
             onClick={onBackToEdit}
-            className="px-3.5 py-1.5 text-xs font-medium rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-300 transition-colors"
+            className="px-3.5 py-1.5 text-xs font-medium rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-300 transition-colors cursor-pointer"
           >
             Edit Items
           </button>
           <button
             type="button"
             onClick={copyFullSummary}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-medium rounded-xl bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors shadow-xs"
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-medium rounded-xl bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors shadow-xs cursor-pointer"
           >
             {copiedAll ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
             {copiedAll ? "Copied all!" : "Copy Summary"}
@@ -153,9 +236,16 @@ export function SummaryView({ onBackToEdit }: { onBackToEdit: () => void }) {
                       {breakdown.person.name.slice(0, 2).toUpperCase()}
                     </div>
                     <div>
-                      <h3 className="font-semibold text-base text-neutral-900 dark:text-neutral-100">
-                        {breakdown.person.name}
-                      </h3>
+                      <div className="flex items-center gap-1.5">
+                        <h3 className="font-semibold text-base text-neutral-900 dark:text-neutral-100">
+                          {breakdown.person.name}
+                        </h3>
+                        {breakdown.person.isReady && (
+                          <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-green-100 text-green-800 dark:bg-green-950/60 dark:text-green-300 font-semibold">
+                            Ready ✓
+                          </span>
+                        )}
+                      </div>
                       <span className="text-[11px] text-neutral-400">
                         {breakdown.items.length} item(s)
                       </span>
@@ -243,7 +333,7 @@ export function SummaryView({ onBackToEdit }: { onBackToEdit: () => void }) {
                         amount: breakdown.total,
                       })
                     }
-                    className="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 text-xs font-semibold rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-900 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 text-xs font-semibold rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-900 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors cursor-pointer"
                   >
                     <QrCode className="w-3.5 h-3.5" />
                     <span>PromptPay QR</span>
@@ -260,7 +350,7 @@ export function SummaryView({ onBackToEdit }: { onBackToEdit: () => void }) {
                       breakdown.person.id
                     )
                   }
-                  className="flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
+                  className="flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors cursor-pointer"
                 >
                   {copiedPersonId === breakdown.person.id ? (
                     <>

@@ -29,6 +29,8 @@ import {
   QrCode,
   Link as LinkIcon,
   CheckCircle2,
+  Clock,
+  Lock,
 } from "lucide-react";
 import { APP_NAME, APP_TAGLINE, APP_VERSION } from "@/lib/version";
 import confetti from "canvas-confetti";
@@ -203,6 +205,12 @@ function GuestBillContent() {
       return;
     }
 
+    // If bill is confirmed by owner, prevent altering items
+    if (bill.status === "confirmed") {
+      alert("This bill has already been confirmed and locked by the owner.");
+      return;
+    }
+
     setBill((prev) => {
       if (!prev) return prev;
       return {
@@ -232,7 +240,6 @@ function GuestBillContent() {
     setTimeout(() => setSaveStatus("idle"), 2000);
   };
 
-  // Toggle "I am Ready / Checked All"
   const handleToggleReady = async () => {
     if (!bill || !activePersonId) return;
 
@@ -321,6 +328,7 @@ function GuestBillContent() {
   const currentCount = bill.people.length;
   const targetCount = bill.targetPeopleCount || 0;
   const readyCount = bill.people.filter((p) => p.isReady).length;
+  const isConfirmed = bill.status === "confirmed";
 
   return (
     <div className="min-h-screen bg-neutral-100/60 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 flex flex-col font-sans pb-32">
@@ -391,7 +399,7 @@ function GuestBillContent() {
         </div>
       )}
 
-      {/* Top Navbar with Headcount and Ready Progress */}
+      {/* Top Navbar */}
       <header className="sticky top-0 z-30 bg-white/80 dark:bg-neutral-900/80 backdrop-blur-md border-b border-neutral-200 dark:border-neutral-800">
         <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-1.5 flex-wrap">
@@ -405,7 +413,6 @@ function GuestBillContent() {
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Live Headcount Pill */}
             <div
               className={`px-2.5 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 border transition-all ${
                 targetCount > 0 && currentCount >= targetCount
@@ -438,6 +445,42 @@ function GuestBillContent() {
       </header>
 
       <main className="max-w-2xl w-full mx-auto p-4 space-y-4">
+        {/* Bill Status Banner for Guests */}
+        <div
+          className={`p-4 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
+            isConfirmed
+              ? "bg-green-500/10 border-green-500/30 text-green-950 dark:text-green-100"
+              : "bg-amber-500/10 border-amber-500/30 text-amber-950 dark:text-amber-100"
+          }`}
+        >
+          <div className="flex items-center gap-2.5">
+            <div
+              className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                isConfirmed ? "bg-green-600 text-white" : "bg-amber-500 text-white"
+              }`}
+            >
+              {isConfirmed ? <CheckCircle2 className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
+            </div>
+            <div>
+              <p className="text-xs font-bold">
+                {isConfirmed ? "Bill Confirmed by Host 🎉" : "Bill Still in Draft"}
+              </p>
+              <p className="text-[11px] text-neutral-600 dark:text-neutral-400">
+                {isConfirmed
+                  ? "Everything is final! Tap the green button below to scan PromptPay."
+                  : "Pick your items and tap 'I'm Ready'. Payment QR will appear once host confirms."}
+              </p>
+            </div>
+          </div>
+          <span
+            className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full shrink-0 ${
+              isConfirmed ? "bg-green-600 text-white" : "bg-amber-500 text-white"
+            }`}
+          >
+            {isConfirmed ? "Ready to Pay" : "Draft"}
+          </span>
+        </div>
+
         {/* Active Identity Bar */}
         <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-4 shadow-xs flex items-center justify-between gap-2">
           <div className="flex items-center gap-2.5 truncate">
@@ -500,7 +543,9 @@ function GuestBillContent() {
                 <span>What did you eat or drink?</span>
               </h2>
               <p className="text-xs text-neutral-500">
-                Tap items to claim. When finished, hit &quot;I&apos;m Ready&quot; below.
+                {isConfirmed
+                  ? "Bill is locked. You can no longer edit selections."
+                  : "Tap items to claim. When finished, hit 'I'm Ready' below."}
               </p>
             </div>
           </div>
@@ -530,7 +575,9 @@ function GuestBillContent() {
                   <div
                     key={item.id}
                     onClick={() => toggleItemForActivePerson(item.id)}
-                    className={`flex items-center justify-between p-3.5 rounded-xl border cursor-pointer select-none transition-all ${
+                    className={`flex items-center justify-between p-3.5 rounded-xl border select-none transition-all ${
+                      isConfirmed ? "cursor-default opacity-90" : "cursor-pointer"
+                    } ${
                       isSelected
                         ? "border-neutral-900 dark:border-white bg-neutral-50 dark:bg-neutral-800/70 shadow-2xs"
                         : "border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 bg-white dark:bg-neutral-900"
@@ -652,7 +699,7 @@ function GuestBillContent() {
         </div>
       </main>
 
-      {/* Floating Bottom Bar with Ready Toggle + PromptPay */}
+      {/* Floating Bottom Bar: Gated QR payment based on Confirmation */}
       {activeBreakdown && (
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md border-t border-neutral-200 dark:border-neutral-800 z-40">
           <div className="max-w-2xl mx-auto flex items-center justify-between gap-3">
@@ -666,30 +713,44 @@ function GuestBillContent() {
             </div>
 
             <div className="flex items-center gap-2">
-              {/* Ready Toggle Button */}
-              <button
-                type="button"
-                onClick={handleToggleReady}
-                className={`inline-flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-bold rounded-xl transition-all shadow-xs cursor-pointer ${
-                  activePerson?.isReady
-                    ? "bg-green-600 text-white hover:bg-green-700 ring-2 ring-green-400"
-                    : "bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200"
-                }`}
-              >
-                <CheckCircle2 className="w-4 h-4" />
-                <span>{activePerson?.isReady ? "Ready ✓" : "I'm Ready"}</span>
-              </button>
-
-              {/* Pay via PromptPay Button */}
-              {bill.promptPayNumber && (
+              {/* Ready Toggle Button (hidden or disabled once confirmed) */}
+              {!isConfirmed && (
                 <button
                   type="button"
-                  onClick={() => setShowPromptPayModal(true)}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-bold rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-colors shadow-sm cursor-pointer"
+                  onClick={handleToggleReady}
+                  className={`inline-flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-bold rounded-xl transition-all shadow-xs cursor-pointer ${
+                    activePerson?.isReady
+                      ? "bg-green-600 text-white hover:bg-green-700 ring-2 ring-green-400"
+                      : "bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200"
+                  }`}
                 >
-                  <QrCode className="w-4 h-4" />
-                  <span>PromptPay</span>
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>{activePerson?.isReady ? "Ready ✓" : "I'm Ready"}</span>
                 </button>
+              )}
+
+              {/* Pay via PromptPay: ONLY active when host confirmed the bill! */}
+              {bill.promptPayNumber && (
+                <>
+                  {isConfirmed ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowPromptPayModal(true)}
+                      className="inline-flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold rounded-xl bg-green-600 text-white hover:bg-green-700 ring-2 ring-green-400 transition-all shadow-md cursor-pointer animate-pulse"
+                    >
+                      <QrCode className="w-4 h-4" />
+                      <span>Pay PromptPay</span>
+                    </button>
+                  ) : (
+                    <div
+                      className="inline-flex items-center gap-1 px-3 py-2 text-[11px] font-medium rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-500 cursor-not-allowed"
+                      title="Payment QR will unlock once the host confirms the bill"
+                    >
+                      <Lock className="w-3.5 h-3.5" />
+                      <span>QR Locked</span>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -697,7 +758,7 @@ function GuestBillContent() {
       )}
 
       {/* PromptPay Modal */}
-      {showPromptPayModal && bill.promptPayNumber && activeBreakdown && (
+      {showPromptPayModal && bill.promptPayNumber && activeBreakdown && isConfirmed && (
         <PromptPayModal
           promptPayNumber={bill.promptPayNumber}
           amount={activeBreakdown.total}

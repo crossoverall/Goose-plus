@@ -13,6 +13,7 @@ import {
   rowToBill,
   BillRow,
   toggleGuestItemAtomic,
+  toggleGuestReadyAtomic,
   joinGuestAtomic,
 } from "@/lib/supabase";
 import {
@@ -27,8 +28,10 @@ import {
   ArrowRight,
   QrCode,
   Link as LinkIcon,
+  CheckCircle2,
 } from "lucide-react";
 import { APP_NAME, APP_TAGLINE, APP_VERSION } from "@/lib/version";
+import confetti from "canvas-confetti";
 
 const AVATAR_COLORS = [
   "#2563eb",
@@ -69,7 +72,6 @@ function GuestBillContent() {
     }
   };
 
-  // Load bill and setup Realtime subscription
   useEffect(() => {
     if (!billId) return;
     let channel: any = null;
@@ -80,7 +82,6 @@ function GuestBillContent() {
       if (data) {
         setBill(data);
 
-        // Tier 1: Check URL searchParam ?u=...
         const urlUserParam = searchParams.get("u");
         const personFromUrl = urlUserParam
           ? data.people.find((p) => p.id === urlUserParam)
@@ -91,21 +92,18 @@ function GuestBillContent() {
           localStorage.setItem(`goose_person_${billId}`, personFromUrl.id);
           setShowWelcomeModal(false);
         } else {
-          // Tier 2: Check localStorage fallback
           const storedPersonId = localStorage.getItem(`goose_person_${billId}`);
           if (storedPersonId && data.people.some((p) => p.id === storedPersonId)) {
             setActivePersonId(storedPersonId);
             syncPersonToUrl(storedPersonId);
             setShowWelcomeModal(false);
           } else {
-            // Tier 3: First time visitor, show name modal
             setShowWelcomeModal(true);
           }
         }
       }
       setLoading(false);
 
-      // Listen for Realtime updates from owner or other friends
       if (supabase) {
         channel = supabase
           .channel(`bill-room-${billId}`)
@@ -130,7 +128,6 @@ function GuestBillContent() {
 
     init();
 
-    // Lifecycle handlers: when user switches back from another app or unlocks their phone
     const handleRevalidateOnForeground = async () => {
       if (document.visibilityState === "visible") {
         setSaveStatus("saving");
@@ -157,7 +154,6 @@ function GuestBillContent() {
     };
   }, [billId, searchParams]);
 
-  // Join via the Welcome Modal non-destructively
   const handleJoinFromNameModal = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!bill || !nameModalInput.trim()) return;
@@ -179,6 +175,7 @@ function GuestBillContent() {
       id: Math.random().toString(36).substring(2, 9),
       name: trimmed,
       color: AVATAR_COLORS[bill.people.length % AVATAR_COLORS.length],
+      isReady: false,
     };
 
     setActivePersonId(newPerson.id);
@@ -200,14 +197,12 @@ function GuestBillContent() {
     setShowWelcomeModal(false);
   };
 
-  // Atomic item toggle: Never deletes items added by the owner
   const toggleItemForActivePerson = async (itemId: string) => {
     if (!bill || !activePersonId) {
       setShowWelcomeModal(true);
       return;
     }
 
-    // Optimistic UI update
     setBill((prev) => {
       if (!prev) return prev;
       return {
@@ -235,6 +230,44 @@ function GuestBillContent() {
     }
     setSaveStatus("saved");
     setTimeout(() => setSaveStatus("idle"), 2000);
+  };
+
+  // Toggle "I am Ready / Checked All"
+  const handleToggleReady = async () => {
+    if (!bill || !activePersonId) return;
+
+    const currentPerson = bill.people.find((p) => p.id === activePersonId);
+    const willBeReady = !currentPerson?.isReady;
+
+    if (willBeReady) {
+      confetti({
+        particleCount: 60,
+        spread: 50,
+        origin: { y: 0.8 },
+      });
+    }
+
+    setBill((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        people: prev.people.map((p) =>
+          p.id === activePersonId ? { ...p, isReady: willBeReady } : p
+        ),
+      };
+    });
+
+    setSaveStatus("saving");
+    const fresh = await toggleGuestReadyAtomic(
+      billId,
+      activePersonId,
+      billRef.current || bill
+    );
+    if (fresh) {
+      setBill(fresh);
+    }
+    setSaveStatus("saved");
+    setTimeout(() => setSaveStatus("idle"), 1500);
   };
 
   const copyPersonalBookmarkLink = () => {
@@ -285,8 +318,12 @@ function GuestBillContent() {
     (b) => b.person.id === activePersonId
   );
 
+  const currentCount = bill.people.length;
+  const targetCount = bill.targetPeopleCount || 0;
+  const readyCount = bill.people.filter((p) => p.isReady).length;
+
   return (
-    <div className="min-h-screen bg-neutral-100/60 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 flex flex-col font-sans pb-28">
+    <div className="min-h-screen bg-neutral-100/60 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 flex flex-col font-sans pb-32">
       {/* Welcome Name Modal */}
       {showWelcomeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
@@ -303,7 +340,6 @@ function GuestBillContent() {
               </p>
             </div>
 
-            {/* Input Form */}
             <form onSubmit={handleJoinFromNameModal} className="space-y-3">
               <div className="relative">
                 <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
@@ -328,7 +364,6 @@ function GuestBillContent() {
               </button>
             </form>
 
-            {/* Existing names picker if host already created names */}
             {bill.people.length > 0 && (
               <div className="pt-2 border-t border-neutral-100 dark:border-neutral-800 space-y-2">
                 <span className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider block text-center">
@@ -356,7 +391,7 @@ function GuestBillContent() {
         </div>
       )}
 
-      {/* Top Navbar */}
+      {/* Top Navbar with Headcount and Ready Progress */}
       <header className="sticky top-0 z-30 bg-white/80 dark:bg-neutral-900/80 backdrop-blur-md border-b border-neutral-200 dark:border-neutral-800">
         <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-1.5 flex-wrap">
@@ -367,12 +402,27 @@ function GuestBillContent() {
             <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-500">
               {APP_TAGLINE}
             </span>
-            <span className="text-[10px] font-mono text-neutral-400">
-              v{APP_VERSION}
-            </span>
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Live Headcount Pill */}
+            <div
+              className={`px-2.5 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 border transition-all ${
+                targetCount > 0 && currentCount >= targetCount
+                  ? "bg-green-50 text-green-700 border-green-200 dark:bg-green-950/40 dark:text-green-300 dark:border-green-800"
+                  : "bg-neutral-50 text-neutral-700 border-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:border-neutral-700"
+              }`}
+            >
+              <Users className="w-3.5 h-3.5 text-neutral-400" />
+              <span>
+                {currentCount}
+                {targetCount > 0 ? `/${targetCount}` : ""} in room
+              </span>
+              <span className="text-[10px] text-green-600 dark:text-green-400 font-bold ml-0.5">
+                ({readyCount} ready)
+              </span>
+            </div>
+
             {saveStatus === "saving" && (
               <span className="text-[10px] text-neutral-400 animate-pulse">
                 Syncing...
@@ -383,10 +433,6 @@ function GuestBillContent() {
                 Saved ✓
               </span>
             )}
-            <div className="px-2 py-0.5 rounded-full bg-green-50 dark:bg-green-950/50 border border-green-200 dark:border-green-900 text-[10px] font-semibold text-green-700 dark:text-green-400 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-              Live Room
-            </div>
           </div>
         </div>
       </header>
@@ -405,9 +451,17 @@ function GuestBillContent() {
               <span className="text-[10px] uppercase font-semibold text-neutral-400 block truncate">
                 {bill.title} · Participating as
               </span>
-              <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100 truncate">
-                {activePerson ? activePerson.name : "Guest (Not selected)"}
-              </p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100 truncate">
+                  {activePerson ? activePerson.name : "Guest (Not selected)"}
+                </p>
+                {activePerson?.isReady && (
+                  <span className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.2 rounded-full bg-green-100 text-green-800 dark:bg-green-950/60 dark:text-green-300 font-semibold">
+                    <CheckCircle2 className="w-3 h-3 text-green-600" />
+                    Ready
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 
@@ -424,7 +478,7 @@ function GuestBillContent() {
                 ) : (
                   <LinkIcon className="w-3.5 h-3.5" />
                 )}
-                <span>{copiedPersonalLink ? "Link Copied" : "Personal Link"}</span>
+                <span>{copiedPersonalLink ? "Copied" : "Link"}</span>
               </button>
             )}
             <button
@@ -446,7 +500,7 @@ function GuestBillContent() {
                 <span>What did you eat or drink?</span>
               </h2>
               <p className="text-xs text-neutral-500">
-                Tap items to claim. Shared dishes divide the cost automatically.
+                Tap items to claim. When finished, hit &quot;I&apos;m Ready&quot; below.
               </p>
             </div>
           </div>
@@ -550,7 +604,7 @@ function GuestBillContent() {
           </div>
         </div>
 
-        {/* Live Total for Everyone */}
+        {/* Live Total for Everyone with Ready status */}
         <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-4 shadow-xs space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
@@ -579,6 +633,11 @@ function GuestBillContent() {
                     <span>
                       {b.person.name} {isMe && "(You)"}
                     </span>
+                    {b.person.isReady && (
+                      <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-green-100 text-green-800 dark:bg-green-950/60 dark:text-green-300 font-semibold">
+                        Ready ✓
+                      </span>
+                    )}
                     <span className="text-[10px] text-neutral-400 font-normal">
                       ({b.items.length} items)
                     </span>
@@ -593,7 +652,7 @@ function GuestBillContent() {
         </div>
       </main>
 
-      {/* Floating Bottom Bar with PromptPay Pay Button */}
+      {/* Floating Bottom Bar with Ready Toggle + PromptPay */}
       {activeBreakdown && (
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md border-t border-neutral-200 dark:border-neutral-800 z-40">
           <div className="max-w-2xl mx-auto flex items-center justify-between gap-3">
@@ -606,20 +665,33 @@ function GuestBillContent() {
               </span>
             </div>
 
-            {bill.promptPayNumber ? (
+            <div className="flex items-center gap-2">
+              {/* Ready Toggle Button */}
               <button
                 type="button"
-                onClick={() => setShowPromptPayModal(true)}
-                className="inline-flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-colors shadow-sm cursor-pointer"
+                onClick={handleToggleReady}
+                className={`inline-flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-bold rounded-xl transition-all shadow-xs cursor-pointer ${
+                  activePerson?.isReady
+                    ? "bg-green-600 text-white hover:bg-green-700 ring-2 ring-green-400"
+                    : "bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200"
+                }`}
               >
-                <QrCode className="w-4 h-4" />
-                <span>Pay via PromptPay</span>
+                <CheckCircle2 className="w-4 h-4" />
+                <span>{activePerson?.isReady ? "Ready ✓" : "I'm Ready"}</span>
               </button>
-            ) : (
-              <div className="text-right text-xs text-neutral-400">
-                {activeBreakdown.items.length} items checked
-              </div>
-            )}
+
+              {/* Pay via PromptPay Button */}
+              {bill.promptPayNumber && (
+                <button
+                  type="button"
+                  onClick={() => setShowPromptPayModal(true)}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-bold rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-colors shadow-sm cursor-pointer"
+                >
+                  <QrCode className="w-4 h-4" />
+                  <span>PromptPay</span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}

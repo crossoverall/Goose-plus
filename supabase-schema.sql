@@ -4,6 +4,7 @@ create table if not exists bills (
   title text not null default 'Restaurant Bill',
   currency text not null default '฿',
   promptpay_number text default '',
+  target_people_count numeric default 0,
   service_charge_percent numeric not null default 0,
   vat_percent numeric not null default 0,
   discount_amount numeric not null default 0,
@@ -14,11 +15,11 @@ create table if not exists bills (
   updated_at timestamptz not null default now()
 );
 
--- If table already exists, ensure promptpay_number column is present:
+-- If table already exists, ensure promptpay_number & target_people_count columns are present:
 alter table bills add column if not exists promptpay_number text default '';
+alter table bills add column if not exists target_people_count numeric default 0;
 
 -- 2. CRITICAL for Realtime: Set Replica Identity to FULL
--- Without this, UPDATE events in Supabase Realtime do not broadcast full jsonb arrays to anon clients!
 alter table bills replica identity full;
 
 -- 3. Enable Row Level Security (RLS) and allow public read/write for bill sharing

@@ -25,6 +25,7 @@ export interface BillRow {
   title: string;
   currency: string;
   promptpay_number?: string;
+  target_people_count?: number;
   service_charge_percent: number;
   vat_percent: number;
   discount_amount: number;
@@ -41,6 +42,7 @@ export function billToRow(bill: Bill): BillRow {
     title: bill.title,
     currency: bill.currency,
     promptpay_number: bill.promptPayNumber || "",
+    target_people_count: bill.targetPeopleCount || 0,
     service_charge_percent: bill.serviceChargePercent,
     vat_percent: bill.vatPercent,
     discount_amount: bill.discountAmount,
@@ -58,6 +60,7 @@ export function rowToBill(row: BillRow): Bill {
     title: row.title,
     currency: row.currency || "฿",
     promptPayNumber: row.promptpay_number || "",
+    targetPeopleCount: Number(row.target_people_count) || 0,
     serviceChargePercent: Number(row.service_charge_percent) || 0,
     vatPercent: Number(row.vat_percent) || 0,
     discountAmount: Number(row.discount_amount) || 0,
@@ -113,11 +116,9 @@ export async function toggleGuestItemAtomic(
 ): Promise<Bill | null> {
   if (!supabase) return null;
 
-  // 1. Fetch fresh DB state
   const latestBill = await fetchBillFromSupabase(billId);
   const base = latestBill || fallbackBill;
 
-  // 2. Ensure person exists
   let people = [...base.people];
   if (!people.some((p) => p.id === personId)) {
     const fallbackPerson = fallbackBill.people.find((p) => p.id === personId);
@@ -126,7 +127,6 @@ export async function toggleGuestItemAtomic(
     }
   }
 
-  // 3. Toggle assignment on the targeted item without deleting any other items
   const updatedItems = base.items.map((item) => {
     if (item.id !== itemId) return item;
     const exists = item.assignedPersonIds.includes(personId);
@@ -148,8 +148,34 @@ export async function toggleGuestItemAtomic(
 }
 
 /**
- * Non-destructive join person:
- * Adds a new guest to the latest DB state without touching menu items.
+ * Toggle ready status for a guest without clobbering items
+ */
+export async function toggleGuestReadyAtomic(
+  billId: string,
+  personId: string,
+  fallbackBill: Bill
+): Promise<Bill | null> {
+  if (!supabase) return null;
+
+  const latestBill = await fetchBillFromSupabase(billId);
+  const base = latestBill || fallbackBill;
+
+  const people = base.people.map((p) =>
+    p.id === personId ? { ...p, isReady: !p.isReady } : p
+  );
+
+  const updatedBill: Bill = {
+    ...base,
+    people,
+    updatedAt: new Date().toISOString(),
+  };
+
+  await syncBillToSupabase(updatedBill);
+  return updatedBill;
+}
+
+/**
+ * Non-destructive join person
  */
 export async function joinGuestAtomic(
   billId: string,

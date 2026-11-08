@@ -23,6 +23,7 @@ export function createEmptyBill(ownerName: string = "Me", title?: string): Bill 
     id: generateId(),
     name: trimmedName,
     color: AVATAR_COLORS[0],
+    isReady: false,
   };
 
   return {
@@ -30,6 +31,7 @@ export function createEmptyBill(ownerName: string = "Me", title?: string): Bill 
     title: title?.trim() || `${trimmedName}'s Bill`,
     currency: "฿",
     promptPayNumber: "",
+    targetPeopleCount: 0, // 0 = not set yet
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     serviceChargePercent: 0,
@@ -37,7 +39,7 @@ export function createEmptyBill(ownerName: string = "Me", title?: string): Bill 
     discountAmount: 0,
     tipAmount: 0,
     people: [owner],
-    items: [], // Completely empty!
+    items: [],
   };
 }
 
@@ -52,6 +54,7 @@ interface BillStoreState {
         | "title"
         | "currency"
         | "promptPayNumber"
+        | "targetPeopleCount"
         | "serviceChargePercent"
         | "vatPercent"
         | "discountAmount"
@@ -63,6 +66,7 @@ interface BillStoreState {
   addPerson: (name: string) => void;
   removePerson: (id: string) => void;
   updatePersonName: (id: string, name: string) => void;
+  togglePersonReady: (id: string) => void;
   // Item actions
   addItem: (item?: Partial<BillItem>) => void;
   updateItem: (id: string, updates: Partial<BillItem>) => void;
@@ -80,7 +84,7 @@ interface BillStoreState {
 export const useBillStore = create<BillStoreState>()(
   persist(
     (set, get) => ({
-      currentBill: null, // Start on landing page by default
+      currentBill: null,
       bills: [],
 
       setCurrentBill: (bill) => set({ currentBill: bill }),
@@ -112,6 +116,7 @@ export const useBillStore = create<BillStoreState>()(
             id: generateId(),
             name: trimmed,
             color,
+            isReady: false,
           };
           const updated: Bill = {
             ...state.currentBill,
@@ -161,6 +166,22 @@ export const useBillStore = create<BillStoreState>()(
           };
         }),
 
+      togglePersonReady: (id) =>
+        set((state) => {
+          if (!state.currentBill) return state;
+          const updated: Bill = {
+            ...state.currentBill,
+            people: state.currentBill.people.map((p) =>
+              p.id === id ? { ...p, isReady: !p.isReady } : p
+            ),
+            updatedAt: new Date().toISOString(),
+          };
+          return {
+            currentBill: updated,
+            bills: state.bills.map((b) => (b.id === updated.id ? updated : b)),
+          };
+        }),
+
       addItem: (partial) =>
         set((state) => {
           if (!state.currentBill) return state;
@@ -169,7 +190,7 @@ export const useBillStore = create<BillStoreState>()(
             name: partial?.name || "",
             price: partial?.price ?? 0,
             quantity: partial?.quantity ?? 1,
-            assignedPersonIds: partial?.assignedPersonIds ?? [], // Start unchecked for everyone
+            assignedPersonIds: partial?.assignedPersonIds ?? [],
           };
 
           const updated: Bill = {
@@ -298,7 +319,7 @@ export const useBillStore = create<BillStoreState>()(
       },
     }),
     {
-      name: "goose_plus_bills_storage_v2",
+      name: "goose_plus_bills_storage_v3",
     }
   )
 );

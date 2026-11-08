@@ -2,6 +2,7 @@ export interface Person {
   id: string;
   name: string;
   color?: string;
+  isReady?: boolean; // Guest pressed "Ready / Checked All"
 }
 
 export interface BillItem {
@@ -16,13 +17,14 @@ export interface Bill {
   id: string;
   title: string;
   currency: string;
-  promptPayNumber?: string; // Phone number or National ID for PromptPay
+  promptPayNumber?: string;
+  targetPeopleCount?: number; // Expected total people (e.g. 5)
   createdAt: string;
   updatedAt: string;
-  serviceChargePercent: number; // e.g. 10
-  vatPercent: number; // e.g. 7 for Thailand
-  discountAmount: number; // lump sum discount
-  tipAmount: number; // lump sum tip
+  serviceChargePercent: number;
+  vatPercent: number;
+  discountAmount: number;
+  tipAmount: number;
   people: Person[];
   items: BillItem[];
 }
